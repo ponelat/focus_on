@@ -1,0 +1,200 @@
+/* Port of the SwiftUI chrome in WidgetView / TaskSelectionView /
+ * LogPastSessionView.
+ *
+ * Colours come from the shell's own theme variables where the original used
+ * NSColor semantic colours (windowBackgroundColor, separatorColor,
+ * tertiaryLabelColor). That's the point of using them rather than the exact
+ * macOS values: the widget should look like it belongs to whatever GNOME
+ * theme and accent colour the user has chosen, light or dark, the same way
+ * the macOS one followed Appearance. */
+
+/* MARK: - Floating widget */
+
+.focuson-widget {
+  background-color: rgba(46, 46, 46, 0.92);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 8px 12px;
+  spacing: 8px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.35);
+}
+
+.focuson-widget:hover {
+  background-color: rgba(58, 58, 58, 0.95);
+}
+
+/* 24pt circle, as in WidgetView. Grey when idle. */
+.focuson-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  background-color: rgba(255, 255, 255, 0.28);
+}
+
+/* The "active blue" the macOS widget pulsed: Color(0.4, 0.68, 1.0). */
+.focuson-dot-active {
+  background-color: rgb(102, 173, 255);
+}
+
+.focuson-task-label {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.focuson-task-label-idle {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.focuson-elapsed-label {
+  font-family: monospace;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+.focuson-chevron {
+  icon-size: 12px;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+/* MARK: - Top bar indicator */
+
+.focuson-indicator-active {
+  color: rgb(102, 173, 255);
+}
+
+/* MARK: - Action menu */
+
+.focuson-menu-path {
+  font-size: 0.9em;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+/* MARK: - Dialogs */
+
+.focuson-dialog-content {
+  spacing: 12px;
+  min-width: 380px;
+  padding: 8px 4px;
+}
+
+.focuson-dialog-heading {
+  font-weight: bold;
+  font-size: 1.15em;
+  padding-bottom: 4px;
+}
+
+.focuson-field-row {
+  spacing: 10px;
+}
+
+.focuson-field-label {
+  min-width: 68px;
+  padding-top: 6px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.focuson-hint,
+.focuson-empty {
+  font-size: 0.9em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.focuson-empty {
+  padding: 16px;
+}
+
+.focuson-error {
+  font-size: 0.9em;
+  color: #ff7b72;
+}
+
+.focuson-entry {
+  min-width: 240px;
+  padding: 6px 8px;
+}
+
+/* Project chips — the stand-in for SwiftUI's .pickerStyle(.menu). */
+
+.focuson-chip-scroll {
+  max-width: 300px;
+}
+
+.focuson-chip-row {
+  spacing: 6px;
+}
+
+.focuson-chip {
+  border-radius: 99px;
+  padding: 4px 12px;
+  background-color: rgba(255, 255, 255, 0.08);
+  border: 1px solid transparent;
+}
+
+.focuson-chip:hover,
+.focuson-chip:focus {
+  background-color: rgba(255, 255, 255, 0.16);
+}
+
+.focuson-chip-selected {
+  background-color: rgb(102, 173, 255);
+  color: #10161f;
+  font-weight: bold;
+}
+
+/* Recent tasks list */
+
+.focuson-recent-scroll {
+  max-height: 200px;
+  min-height: 60px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+}
+
+.focuson-recent-list {
+  spacing: 2px;
+  padding: 4px;
+}
+
+.focuson-recent-row {
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.focuson-recent-row:hover,
+.focuson-recent-row:focus {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.focuson-recent-row-content {
+  spacing: 2px;
+}
+
+.focuson-recent-name {
+  font-size: 1em;
+}
+
+.focuson-recent-when {
+  font-size: 0.8em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+/* Completed checkbox */
+
+.focuson-check {
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.focuson-check:hover,
+.focuson-check:focus {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.focuson-check-content {
+  spacing: 8px;
+}
+
+.focuson-check-icon {
+  icon-size: 16px;
+}

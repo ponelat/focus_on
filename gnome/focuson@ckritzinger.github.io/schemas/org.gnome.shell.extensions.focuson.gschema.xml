@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <!--
+    The GNOME equivalent of the macOS widget's UserDefaults.
+
+    Deliberately absent: the data directory. That one lives in the CLI's own
+    config.toml, read and written by both sides, exactly as the macOS widget
+    does it (see CSVLogger.swift's doc comment) — one file, no second copy to
+    fall out of sync with.
+  -->
+  <schema id="org.gnome.shell.extensions.focuson" path="/org/gnome/shell/extensions/focuson/">
+
+    <key name="current-task-name" type="s">
+      <default>''</default>
+      <summary>Name of the task being tracked</summary>
+      <description>
+        Empty when nothing is being tracked. On enable, a non-empty value
+        starts a fresh session (new uuid) for the same task name — it is
+        never a resumption of the old uuid. See TaskStore.loadState.
+      </description>
+    </key>
+
+    <key name="current-task-uuid" type="s">
+      <default>''</default>
+      <summary>UUID shared by the active session's opening and closing rows</summary>
+    </key>
+
+    <key name="current-task-started-at" type="x">
+      <default>0</default>
+      <summary>Unix seconds at which the active session started</summary>
+      <description>0 when nothing is being tracked.</description>
+    </key>
+
+    <key name="current-project-slug" type="s">
+      <default>'personal'</default>
+      <summary>Project the active task belongs to</summary>
+      <description>
+        Persists after a task completes or pauses, so it doubles as
+        "last used project" — the task picker's default next time.
+      </description>
+    </key>
+
+    <key name="widget-x" type="i">
+      <default>-1</default>
+      <summary>Saved widget X position in stage coordinates</summary>
+      <description>-1 means "never positioned" — fall back to the default corner.</description>
+    </key>
+
+    <key name="widget-y" type="i">
+      <default>-1</default>
+      <summary>Saved widget Y position in stage coordinates</summary>
+      <description>-1 means "never positioned" — fall back to the default corner.</description>
+    </key>
+
+    <key name="show-widget" type="b">
+      <default>true</default>
+      <summary>Show the floating widget</summary>
+      <description>
+        When off, only the top-bar indicator is shown. Tracking continues
+        either way.
+      </description>
+    </key>
+
+    <key name="prompt-on-startup" type="b">
+      <default>true</default>
+      <summary>Ask what you are working on when the extension starts with no active task</summary>
+      <description>
+        The macOS widget opened its task picker on every launch with nothing
+        tracked. Kept as the default here, but made optional: a Shell modal
+        takes a keyboard grab, which is a good deal heavier at every login
+        than the popover it is standing in for.
+      </description>
+    </key>
+
+  </schema>
+</schemalist>

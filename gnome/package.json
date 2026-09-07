@@ -1,0 +1,9 @@
+{
+  "name": "focuson-gnome",
+  "private": true,
+  "type": "module",
+  "description": "Marks the GNOME extension sources as ES modules so `node --test tests/` can import lib/format.js directly. GNOME Shell ignores this file — it loads extension JS as ESM regardless. Nothing here is ever installed or bundled.",
+  "scripts": {
+    "test": "node --test tests/"
+  }
+}

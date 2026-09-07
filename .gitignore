@@ -16,3 +16,13 @@ xcuserdata/
 # Generated icon source (icon PNGs are committed, script is not needed in repo)
 make_icon.swift
 .claude
+
+# Nix build outputs
+result
+result-*
+
+# GNOME extension: compiled from schemas/*.gschema.xml at install time
+gnome/**/schemas/gschemas.compiled
+
+# Node, used only to lint and test the extension's pure JS
+node_modules/

@@ -2,8 +2,10 @@
 
 A local-first personal time-tracking and invoicing tool. Two pieces:
 
-- **FocusOn.app** — a lightweight macOS widget that keeps your current task visible and logs work sessions.
+- **The widget** — keeps your current task visible and logs work sessions. **FocusOn.app** on macOS; a **GNOME Shell extension** on Linux (see [`gnome/`](gnome/README.md)).
 - **`focuson`** — a companion CLI that turns logged time into invoices: clients, projects, rates, PDF generation, and git-backed durability.
+
+A data directory is portable between platforms — sync one over git and the macOS widget, the GNOME widget and the CLI all read and write it interchangeably.
 
 No accounts. No cloud. No subscription. Everything lives in plain CSV/TOML files in a git repo you control.
 
@@ -23,15 +25,25 @@ No accounts. No cloud. No subscription. Everything lives in plain CSV/TOML files
 - UUID-based double-billing prevention — a session invoiced once never gets billed again, even months later with no date filter
 - "Check consistency" — flags anything that looks billed twice or forgotten
 - `focuson sync` commits your data directory to git and pushes to `origin` if you've set one up
-- `focuson cron install` schedules a daily automatic sync (via a macOS LaunchAgent) so you can't forget
+- `focuson cron install` schedules a daily automatic sync — a LaunchAgent on macOS, a systemd user timer on Linux — so you can't forget
 
 ## Requirements
 
-- macOS 13.0 (Ventura) or later
+- macOS 13.0 (Ventura) or later, **or** GNOME Shell 45–49 (see [`gnome/README.md`](gnome/README.md))
 - [Go](https://go.dev) if you want the CLI (the widget alone doesn't need it) — `go build` will fetch the exact toolchain version `cli/go.mod` requires automatically
 - `git`, with a remote configured for your data directory if you want off-machine backup (recommended)
 
 ## Install
+
+### Linux / GNOME
+
+```bash
+./install-gnome.sh
+```
+
+On NixOS, use the flake instead — it ships the CLI, the extension, a NixOS module and a Home Manager module. Both routes are covered in [`gnome/README.md`](gnome/README.md).
+
+### macOS
 
 ```bash
 ./install.sh
@@ -105,7 +117,7 @@ Every `focuson` run checks each project's `task_log.csv` for a session that was 
 
 ## Backups
 
-`focuson sync` (and the daily cron job) stages, commits, and pushes your data directory. Push is best-effort — a failed push (no network, no remote configured) never blocks the local commit, since that's the actual durability guarantee. Set up a remote (a private GitHub repo works well) for real off-machine backup:
+`focuson sync` (and the daily cron job) stages, commits, and pushes your data directory. On Linux the job is a systemd user timer with `Persistent=true`, so a laptop that was closed at the scheduled time still syncs when it comes back; its output goes to the journal (`journalctl --user -u focuson-sync.service`) rather than to a log file. Push is best-effort — a failed push (no network, no remote configured) never blocks the local commit, since that's the actual durability guarantee. Set up a remote (a private GitHub repo works well) for real off-machine backup:
 
 ```bash
 cd ~/focuson-data
@@ -127,6 +139,11 @@ FocusOn/                        # the widget (Swift)
 ├── TaskStore.swift             # State management, CSV coordination
 └── CSVLogger.swift             # File I/O, CSV formatting, shared config with the CLI
 
+gnome/                          # the widget on GNOME — a Shell extension (JavaScript)
+└── focuson@ckritzinger.github.io/   # see gnome/README.md for the full layout
+
+nix/                            # Nix packages and NixOS / Home Manager modules
+
 cli/                            # the focuson CLI (Go)
 ├── main.go                     # TUI launch + flag subcommands (sync, invoice, cron)
 └── internal/
@@ -136,8 +153,8 @@ cli/                            # the focuson CLI (Go)
     ├── invoicing/    # invoice generation, numbering, recon
     ├── pdfgen/       # PDF rendering
     ├── gitsync/      # commit + push
-    ├── cronsetup/    # LaunchAgent install/uninstall
+    ├── cronsetup/    # daily sync job: LaunchAgent (darwin) / systemd user timer (linux)
     └── tui/          # Bubble Tea screens
 ```
 
-See `spec_v2.md` for the full design and implementation history.
+See `spec_v2.md` for the full design and implementation history, and [`gnome/README.md`](gnome/README.md) for what the GNOME port changed and why.

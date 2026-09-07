@@ -1,0 +1,11 @@
+{
+  "uuid": "focuson@ckritzinger.github.io",
+  "name": "FocusOn",
+  "description": "Keeps your current task visible and logs work sessions to the same CSV files the focuson CLI invoices from. A floating, draggable widget plus a top-bar indicator. The GNOME port of FocusOn.app.",
+  "shell-version": ["45", "46", "47", "48", "49"],
+  "settings-schema": "org.gnome.shell.extensions.focuson",
+  "gettext-domain": "focuson",
+  "session-modes": ["user", "unlock-dialog"],
+  "url": "https://github.com/ckritzinger/focus_on",
+  "version-name": "1.0.0"
+}
