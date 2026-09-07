@@ -130,6 +130,44 @@ gsettings set org.gnome.shell enabled-extensions \
 | `launchd` LaunchAgent for daily sync | systemd user timer, `Persistent=true` |
 | `applicationWillTerminate` | `disable()` |
 
+## Beyond the macOS app: "Actually, I…"
+
+Not in FocusOn.app, and on its own branch because it may or may not belong
+upstream.
+
+The timer says "Writing" and has said so for forty minutes. The forty minutes
+went on fiddling with FocusOn. Pausing loses the distinction; completing files
+it as writing you never did. **Actually, I…** asks what really happened, bills
+the elapsed time to that instead, and then offers the original task back with
+its name pre-filled, so getting on with what you meant to do is one keystroke.
+
+It needs no change to the CSV format, because the format already allows it. A
+session contributes exactly one row to an invoice — the closing one, since
+`internal/invoicing` skips every row with an empty `to` — and the task name
+billed is the one written there. So the closing row carries the real task name
+while the opening row keeps the name you started under. The log still records
+that you meant to be writing, which is the honest version of events and the
+point of an append-only file.
+
+```
+uuid-1,"Writing",             09:00,      ,        # you meant to write
+uuid-1,"Fiddling with FocusOn",09:00, 09:40, true   # you did not
+uuid-2,"Writing",             09:40, 10:40, true   # then you did
+```
+
+That invoices as 0.67h of fiddling and 1.00h of writing. Nothing is
+double-counted, and the shared uuid keeps the session properly closed, so the
+CLI's integrity check stays happy.
+
+**It cannot move time between projects**, and that is a real limitation rather
+than an oversight. The closing row has to land in the same `task_log.csv` as
+the row it closes; putting it in another project's file would leave the
+original project holding a uuid that never closes, which is exactly the
+dangling entry the CLI refuses to run against. Procrastinating from a client
+project into a personal one is a genuine case this does not express. Doing it
+properly needs the CLI to learn a way of voiding a session, which is a format
+change and a conversation with upstream.
+
 ## Deliberate differences
 
 **The screen lock does not end your session.** `metadata.json` lists the
@@ -182,9 +220,12 @@ node --test tests/     # the CSV/timestamp contract with the Go CLI
 npx eslint .           # catches typo'd identifiers, which GNOME only reports in a log
 ```
 
-`lib/format.js` deliberately imports nothing from `gi://`. It holds everything
-the extension and the Go CLI must agree on, so it can be tested without a GNOME
-session — and it is, as the Nix package's check phase.
+`lib/format.js` and `lib/taskStore.js` deliberately import nothing from
+`gi://` — the first holds everything the extension and the Go CLI must agree
+on, the second is the state machine whose output is someone's billing record.
+Both can therefore be tested without a GNOME session, and both are, as the Nix
+package's check phase. `TaskStore` takes its logger as a constructor argument
+for exactly this reason.
 
 Everything else needs a real GNOME session to exercise. `journalctl --user -f -o
 cat /usr/bin/gnome-shell` is where errors go.
@@ -204,6 +245,6 @@ gnome/focuson@ckritzinger.github.io/
     ├── taskStore.js       # state machine — port of TaskStore.swift
     ├── widget.js          # the floating widget — port of FloatingPanel + WidgetView
     ├── dialogs.js         # task picker and past-session entry
-    ├── actionMenu.js      # port of ActionPopoverView
+    ├── actionMenu.js      # port of ActionPopoverView + "Actually, I…"
     └── compat.js          # the two St APIs that moved between GNOME 45 and 49
 ```

@@ -31,13 +31,14 @@ stdenvNoCC.mkDerivation {
   dontConfigure = true;
   dontBuild = true;
 
-  # lib/format.js holds everything the extension and the Go CLI have to agree
-  # on — the CSV row format and the RFC 3339 timestamps. It is free of gi://
-  # imports precisely so it can be checked here, without a GNOME session.
+  # Two things are gi://-free precisely so they can be checked here, without a
+  # GNOME session: lib/format.js, which holds the CSV row format and RFC 3339
+  # timestamps the Go CLI has to agree with, and lib/taskStore.js, the state
+  # machine whose output is someone's billing record.
   doCheck = true;
   checkPhase = ''
     runHook preCheck
-    node --test tests/format.test.js
+    node --test tests/*.test.js
     runHook postCheck
   '';
 

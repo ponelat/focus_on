@@ -19,7 +19,7 @@ import * as CSVLogger from './lib/csvLogger.js';
 import {TaskStore} from './lib/taskStore.js';
 import {FloatingWidget} from './lib/widget.js';
 import {buildActionMenu} from './lib/actionMenu.js';
-import {openLogPastSession, openTaskSelection} from './lib/dialogs.js';
+import {openActuallyI, openLogPastSession, openTaskSelection} from './lib/dialogs.js';
 
 /** Matches the 0.35s AppDelegate waited before opening its first task picker. */
 const STARTUP_PROMPT_DELAY_MS = 700;
@@ -27,7 +27,7 @@ const STARTUP_PROMPT_DELAY_MS = 700;
 export default class FocusOnExtension extends Extension {
     enable() {
         this._settings = this.getSettings();
-        this._store = new TaskStore(this._settings);
+        this._store = new TaskStore(this._settings, CSVLogger);
         this._timeouts = new Set();
 
         this._addIndicator();
@@ -245,6 +245,7 @@ export default class FocusOnExtension extends Extension {
                 },
                 onPauseTask: () => this._store.pauseCurrentTask(),
                 onChangeTask: () => this._showTaskSelection(false),
+                onActuallyI: () => this._showActuallyI(),
                 onLogPastSession: () => this._showLogPastSession(),
                 onOpenPreferences: () => this.openPreferences(),
                 onTurnOff: () => {
@@ -259,14 +260,40 @@ export default class FocusOnExtension extends Extension {
 
     // MARK: - Dialogs
 
-    _showTaskSelection(completingPrevious) {
+    _showTaskSelection(completingPrevious, prefillTask = '') {
         this._closeWidgetMenu(true);
         this._store.refreshAvailableProjects();
         openTaskSelection({
             store: this._store,
             completingPrevious,
+            prefillTask,
             onSelect: (name, project, completing) =>
                 this._store.startTask(name, project, completing),
+        });
+    }
+
+    /**
+     * "Actually, I…" — close the running session against the task it really
+     * went on, then offer to restart the one it was supposed to be.
+     *
+     * The picker comes back pre-filled with the original task name, selected,
+     * because getting back to what you meant to be doing is the whole point
+     * of admitting you weren't.
+     */
+    _showActuallyI() {
+        this._closeWidgetMenu(true);
+        if (!this._store.isTracking)
+            return;
+
+        const nominalTask = this._store.currentTaskName;
+        this._store.refreshAvailableProjects();
+
+        openActuallyI({
+            store: this._store,
+            onConfirm: (actualTask, completed) => {
+                this._store.closeCurrentTaskAs(actualTask, completed);
+                this._showTaskSelection(false, nominalTask);
+            },
         });
     }
 

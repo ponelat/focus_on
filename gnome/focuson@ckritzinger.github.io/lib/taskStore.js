@@ -5,8 +5,12 @@
 // plain JS class rather than a GObject: nothing outside needs it to be one,
 // and it keeps the extension free of GType registrations that have to
 // survive a disable/enable cycle.
-
-import * as CSVLogger from './csvLogger.js';
+//
+// The CSV logger arrives as a constructor argument rather than an import.
+// That keeps every `gi://` dependency out of this file, which is what lets
+// the state machine — the part where a mistake silently corrupts someone's
+// billing record — be tested under plain `node` against a fake logger. See
+// gnome/tests/taskStore.test.js.
 
 /** Unix seconds. The CSV stores whole seconds, so there's nothing finer to keep. */
 function now() {
@@ -14,8 +18,13 @@ function now() {
 }
 
 export class TaskStore {
-    constructor(settings) {
+    /**
+     * @param {Gio.Settings} settings
+     * @param {object} logger the csvLogger module, or a stand-in for it
+     */
+    constructor(settings, logger) {
         this._settings = settings;
+        this._log = logger;
         this._listeners = new Set();
 
         this.currentTaskName = null;
@@ -36,7 +45,7 @@ export class TaskStore {
         this.currentProjectSlug = 'personal';
 
         /**
-         * Source of truth is CSVLogger.listProjectSlugs() (a directory
+         * Source of truth is this._log.listProjectSlugs() (a directory
          * listing of projects/), never manifest.toml — see csvLogger.js.
          */
         this.availableProjects = ['personal'];
@@ -62,7 +71,7 @@ export class TaskStore {
         this.currentTaskName = name === '' ? null : name;
         this.currentProjectSlug = this._settings.get_string('current-project-slug') || 'personal';
 
-        CSVLogger.bootstrapDataDirectoryIfNeeded();
+        this._log.bootstrapDataDirectoryIfNeeded();
         this.refreshAvailableProjects();
 
         if (this.currentTaskName === null) {
@@ -80,11 +89,11 @@ export class TaskStore {
         // `to`-filled rows sharing one uuid and break the one-row-per-uuid
         // invariant invoicing depends on.
         const startedAt = now();
-        const uuid = CSVLogger.newUUID();
+        const uuid = this._log.newUUID();
         this.currentTaskStartedAt = startedAt;
         this.currentTaskUUID = uuid;
         this._persistState();
-        CSVLogger.appendRow({
+        this._log.appendRow({
             project: this.currentProjectSlug,
             uuid,
             task: this.currentTaskName,
@@ -96,7 +105,7 @@ export class TaskStore {
     }
 
     refreshAvailableProjects() {
-        const projects = CSVLogger.listProjectSlugs();
+        const projects = this._log.listProjectSlugs();
         this.availableProjects = projects.length > 0 ? projects : ['personal'];
 
         // Only ever re-point the "last used project" while nothing is being
@@ -120,7 +129,7 @@ export class TaskStore {
      * @returns {{name: string, startedAt: number}[]} most recent first, at most 10
      */
     recentTasks(project) {
-        const rows = CSVLogger.readAllRows(project);
+        const rows = this._log.readAllRows(project);
 
         // Include open rows (no closing time) and paused rows (closed but
         // not completed). Exclude rows explicitly marked completed = true.
@@ -145,7 +154,7 @@ export class TaskStore {
         if (this.currentTaskName !== null &&
             this.currentTaskStartedAt !== null &&
             this.currentTaskUUID !== null) {
-            CSVLogger.appendRow({
+            this._log.appendRow({
                 project: this.currentProjectSlug,
                 uuid: this.currentTaskUUID,
                 task: this.currentTaskName,
@@ -155,13 +164,13 @@ export class TaskStore {
             });
         }
 
-        const uuid = CSVLogger.newUUID();
+        const uuid = this._log.newUUID();
         this.currentTaskName = name;
         this.currentProjectSlug = project;
         this.currentTaskStartedAt = at;
         this.currentTaskUUID = uuid;
         this._persistState();
-        CSVLogger.appendRow({project, uuid, task: name, from: at, to: null, completed: null});
+        this._log.appendRow({project, uuid, task: name, from: at, to: null, completed: null});
         this._emitChanged();
     }
 
@@ -173,16 +182,51 @@ export class TaskStore {
         this._closeCurrentTask(false);
     }
 
-    _closeCurrentTask(completed) {
+    /**
+     * "Actually, I…" — close the running session, but bill the elapsed time
+     * to what you were *really* doing rather than to what the timer says.
+     *
+     * The timer claims you spent the last forty minutes Writing. You spent
+     * them fiddling with FocusOn. This records the truth.
+     *
+     * It works within the existing CSV format rather than extending it,
+     * because the format already allows it: the closing row is the only row
+     * a session contributes to an invoice (internal/invoicing skips every
+     * row with an empty `to`), and the task name billed is the one on that
+     * closing row. So writing the real task name there moves the time, with
+     * nothing double-counted and no change the CLI has to learn about.
+     *
+     * The opening row keeps the name you started under, which is the point
+     * of an append-only log — it still says you meant to be Writing.
+     *
+     * The project deliberately cannot change. The closing row has to land in
+     * the same task_log.csv as the row it closes, or the original project is
+     * left with an unclosed uuid that the CLI's integrity check reports as
+     * abandoned. Procrastinating across projects is a real thing and this
+     * does not express it; see gnome/README.md.
+     *
+     * @param {string} actualTask what you were really doing
+     * @param {boolean} completed whether that is now finished
+     */
+    closeCurrentTaskAs(actualTask, completed) {
+        this._closeCurrentTask(completed, actualTask);
+    }
+
+    /**
+     * @param {boolean} completed
+     * @param {?string} taskOverride name to write on the closing row; null
+     *   keeps the name the session started under
+     */
+    _closeCurrentTask(completed, taskOverride = null) {
         if (this.currentTaskName === null ||
             this.currentTaskStartedAt === null ||
             this.currentTaskUUID === null)
             return;
 
-        CSVLogger.appendRow({
+        this._log.appendRow({
             project: this.currentProjectSlug,
             uuid: this.currentTaskUUID,
-            task: this.currentTaskName,
+            task: taskOverride ?? this.currentTaskName,
             from: this.currentTaskStartedAt,
             to: now(),
             completed,
@@ -202,9 +246,9 @@ export class TaskStore {
      * whatever is being tracked live.
      */
     logPastSession(project, task, from, to, completed) {
-        CSVLogger.appendRow({
+        this._log.appendRow({
             project,
-            uuid: CSVLogger.newUUID(),
+            uuid: this._log.newUUID(),
             task,
             from,
             to,
@@ -226,7 +270,7 @@ export class TaskStore {
             this.currentTaskUUID === null)
             return;
 
-        CSVLogger.appendRow({
+        this._log.appendRow({
             project: this.currentProjectSlug,
             uuid: this.currentTaskUUID,
             task: this.currentTaskName,

@@ -34,6 +34,12 @@ export function buildActionMenu(menu, {store, settings, actions}) {
         addItem(menu, 'Complete task', 'object-select-symbolic', actions.onCompleteTask);
         addItem(menu, 'Pause task', 'media-playback-pause-symbolic', actions.onPauseTask);
         addItem(menu, 'Change task', 'edit-undo-symbolic', actions.onChangeTask);
+
+        // Closes the session like "Complete task", but bills the elapsed time
+        // to whatever you were really doing. Last in the group so the three
+        // items above keep the positions muscle memory expects.
+        addItem(menu, 'Actually, I…', 'edit-find-replace-symbolic', actions.onActuallyI);
+
         menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
     }
 

@@ -18,7 +18,7 @@ import St from 'gi://St';
 import * as ModalDialog from 'resource:///org/gnome/shell/ui/modalDialog.js';
 
 import {boxLayout, setScrollChild} from './compat.js';
-import {formatLocalDateTime, formatRelative, parseLocalDateTime} from './format.js';
+import {formatElapsed, formatLocalDateTime, formatRelative, parseLocalDateTime} from './format.js';
 
 /**
  * SwiftUI's Picker has no St equivalent, and a popup menu inside a modal
@@ -125,8 +125,9 @@ function fieldLabel(text) {
  * @param {import('./taskStore.js').TaskStore} params.store
  * @param {boolean} params.completingPrevious whether accepting also completes the task being replaced
  * @param {(name: string, project: string, completingPrevious: boolean) => void} params.onSelect
+ * @param {string} [params.prefillTask] pre-typed task name, selected so it can be replaced by typing
  */
-export function openTaskSelection({store, completingPrevious, onSelect}) {
+export function openTaskSelection({store, completingPrevious, onSelect, prefillTask = ''}) {
     const dialog = new ModalDialog.ModalDialog({styleClass: 'focuson-dialog'});
     const content = boxLayout(true, {style_class: 'focuson-dialog-content'});
     dialog.contentLayout.add_child(content);
@@ -145,9 +146,16 @@ export function openTaskSelection({store, completingPrevious, onSelect}) {
     const entry = new St.Entry({
         style_class: 'focuson-entry',
         hint_text: 'New task…',
+        text: prefillTask,
         can_focus: true,
         x_expand: true,
     });
+    if (prefillTask !== '') {
+        // Selected, not just present: after "Actually, I…" the overwhelmingly
+        // likely next move is Enter to resume what you were supposed to be
+        // doing, but typing over it has to stay just as cheap.
+        entry.clutter_text.set_selection(0, prefillTask.length);
+    }
 
     const chooser = new ProjectChooser(
         store.availableProjects,
@@ -340,6 +348,125 @@ export function openLogPastSession({store, onSave}) {
     ]);
 
     dialog.setInitialKeyFocus(taskEntry.clutter_text);
+    dialog.open(global.get_current_time());
+    return dialog;
+}
+
+
+/**
+ * "Actually, I…" — re-attribute the running session to what you were really
+ * doing, and close it out.
+ *
+ * The gap this fills: a timer says "Writing" and has said so for forty
+ * minutes, but the forty minutes went on something else. Pausing loses the
+ * distinction and completing files it as writing you never did. This asks
+ * what actually happened and bills the time to that instead.
+ *
+ * Deliberately not a project picker. The closing row must land in the same
+ * task_log.csv as the row it closes, or the original project keeps an
+ * unclosed session that the CLI reports as abandoned — so the project is
+ * shown, not offered. See TaskStore.closeCurrentTaskAs.
+ *
+ * @param {object} params
+ * @param {import('./taskStore.js').TaskStore} params.store
+ * @param {(actualTask: string, completed: boolean) => void} params.onConfirm
+ */
+export function openActuallyI({store, onConfirm}) {
+    const nominalTask = store.currentTaskName;
+    const elapsed = formatElapsed(Math.floor(Date.now() / 1000) - store.currentTaskStartedAt);
+
+    const dialog = new ModalDialog.ModalDialog({styleClass: 'focuson-dialog'});
+    const content = boxLayout(true, {style_class: 'focuson-dialog-content'});
+    dialog.contentLayout.add_child(content);
+
+    content.add_child(heading('Actually, I…'));
+
+    content.add_child(new St.Label({
+        style_class: 'focuson-hint',
+        text: `The last ${elapsed} is logged to “${nominalTask}” in ${store.currentProjectSlug}. ` +
+            'Say what it really went on and it moves there instead.',
+    }));
+
+    const recentBox = boxLayout(true, {style_class: 'focuson-recent-list'});
+    const recentScroll = new St.ScrollView({
+        style_class: 'focuson-recent-scroll',
+        hscrollbar_policy: St.PolicyType.NEVER,
+        vscrollbar_policy: St.PolicyType.AUTOMATIC,
+        y_expand: true,
+    });
+    setScrollChild(recentScroll, recentBox);
+
+    const entry = new St.Entry({
+        style_class: 'focuson-entry',
+        hint_text: 'What you actually did…',
+        can_focus: true,
+        x_expand: true,
+    });
+
+    const check = new CheckRow('Finished with it', true);
+
+    const confirm = name => {
+        const trimmed = name.trim();
+        if (trimmed === '')
+            return;
+        dialog.close(global.get_current_time());
+        onConfirm(trimmed, check.checked);
+    };
+
+    // Procrastination repeats, so the recent list is usually where the answer
+    // already is. Scoped to the session's own project, since that is the only
+    // file the closing row can go to.
+    const recent = store.recentTasks(store.currentProjectSlug)
+        .filter(task => task.name !== nominalTask);
+
+    if (recent.length === 0) {
+        recentBox.add_child(new St.Label({
+            style_class: 'focuson-empty',
+            text: 'No other recent tasks',
+        }));
+    } else {
+        for (const task of recent) {
+            const rowContent = boxLayout(true, {style_class: 'focuson-recent-row-content'});
+            rowContent.add_child(new St.Label({
+                style_class: 'focuson-recent-name',
+                text: task.name,
+            }));
+            rowContent.add_child(new St.Label({
+                style_class: 'focuson-recent-when',
+                text: formatRelative(task.startedAt),
+            }));
+
+            const button = new St.Button({
+                style_class: 'focuson-recent-row',
+                can_focus: true,
+                x_expand: true,
+                child: rowContent,
+            });
+            button.connect('clicked', () => confirm(task.name));
+            recentBox.add_child(button);
+        }
+    }
+
+    content.add_child(recentScroll);
+    content.add_child(entry);
+    content.add_child(check.actor);
+
+    entry.clutter_text.connect('activate', () => confirm(entry.get_text()));
+
+    dialog.setButtons([
+        {
+            label: 'Cancel',
+            key: Clutter.KEY_Escape,
+            action: () => dialog.close(global.get_current_time()),
+        },
+        {
+            label: 'Move the time',
+            default: true,
+            action: () => confirm(entry.get_text()),
+        },
+    ]);
+
+    dialog.setInitialKeyFocus(entry.clutter_text);
     dialog.open(global.get_current_time());
     return dialog;
 }
