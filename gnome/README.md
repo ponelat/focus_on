@@ -94,7 +94,23 @@ place, so there is no `Alt+F2 r`.
 ```bash
 cp -r "gnome/focuson@ckritzinger.github.io" ~/.local/share/gnome-shell/extensions/
 glib-compile-schemas ~/.local/share/gnome-shell/extensions/focuson@ckritzinger.github.io/schemas
+# log out and back in, then:
 gnome-extensions enable focuson@ckritzinger.github.io
+```
+
+The log-out is not optional and it comes *first*. gnome-shell scans for
+extensions once, as the session starts, with no file monitor on any of the
+directories it looks in. `gnome-extensions enable` asks the running shell to
+enable something it already knows about, so running it before a fresh session
+fails with `Extension "focuson@ckritzinger.github.io" does not exist`.
+
+To skip one of the two log-outs, write the setting instead — it is a plain
+dconf list that the shell reads on the way up, so it can name an extension the
+running shell has never heard of:
+
+```bash
+gsettings set org.gnome.shell enabled-extensions \
+  "['focuson@ckritzinger.github.io']"   # careful: replaces the whole list
 ```
 
 ## What maps to what

@@ -37,13 +37,30 @@ cp -R "$EXT_SRC/." "$EXT_DEST/"
 # including the widget position and whatever task was being tracked.
 glib-compile-schemas --strict "$EXT_DEST/schemas"
 
-if command -v gnome-extensions > /dev/null; then
-  # Enabling before the shell has seen the files is fine — GNOME records the
-  # uuid and picks it up on the next load.
-  gnome-extensions enable "$UUID" || \
-    echo "Note: couldn't enable it automatically — turn FocusOn on in the Extensions app."
+# Deliberately not `gnome-extensions enable`: that asks the *running* shell to
+# enable something, and the running shell scanned for extensions when the
+# session started — once, with no file monitor. An extension that appeared
+# afterwards is not in its map, so the call fails with
+# "Extension ... does not exist".
+#
+# Writing the setting directly works regardless, because the list is plain
+# dconf and the shell reads it on the way up. Appending rather than setting
+# keeps whatever else you already had enabled.
+if command -v gsettings > /dev/null; then
+  echo "Enabling FocusOn for the next session..."
+  current="$(gsettings get org.gnome.shell enabled-extensions 2>/dev/null || echo "@as []")"
+  case "$current" in
+    *"'$UUID'"*)
+      ;;
+    "@as []" | "[]")
+      gsettings set org.gnome.shell enabled-extensions "['$UUID']"
+      ;;
+    *)
+      gsettings set org.gnome.shell enabled-extensions "${current%]}, '$UUID']"
+      ;;
+  esac
 else
-  echo "Note: gnome-extensions not found — turn FocusOn on in the Extensions app."
+  echo "Note: gsettings not found — turn FocusOn on in the Extensions app after logging back in."
 fi
 
 # --- CLI -------------------------------------------------------------------
