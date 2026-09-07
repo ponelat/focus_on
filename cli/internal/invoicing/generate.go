@@ -33,14 +33,12 @@ func Preview(dataDir string, man manifest.Manifest, opts Options) (Invoice, erro
 	if !project.Billable() {
 		return Invoice{}, fmt.Errorf("project %q has no client — nothing to invoice", opts.ProjectSlug)
 	}
-	client, ok := man.FindClient(project.Client)
-	if !ok {
-		return Invoice{}, fmt.Errorf("project %q references unknown client %q", opts.ProjectSlug, project.Client)
-	}
-	rate, ok := man.EffectiveRate(project)
+	billing, ok := man.EffectiveBilling(project)
 	if !ok {
 		return Invoice{}, fmt.Errorf("no rate set for project %q or client %q", opts.ProjectSlug, project.Client)
 	}
+	client := billing.Client
+	rate := billing.Rate
 
 	taskLogPath := filepath.Join(dataDir, "projects", opts.ProjectSlug, "task_log.csv")
 	rows, err := tasklog.ReadRows(taskLogPath)
@@ -67,8 +65,8 @@ func Preview(dataDir string, man manifest.Manifest, opts Options) (Invoice, erro
 		if opts.To != nil && r.To.After(*opts.To) {
 			continue
 		}
-		hours := r.To.Sub(r.From).Hours()
-		if r.To.Sub(r.From) < time.Minute {
+		clock := r.To.Sub(r.From)
+		if clock < time.Minute {
 			// A same-instant (or few-second) start/stop — noise, not real
 			// work, and displays as a useless "0.00h" line at 2-decimal
 			// precision even when technically nonzero. Left out of the
@@ -77,20 +75,30 @@ func Preview(dataDir string, man manifest.Manifest, opts Options) (Invoice, erro
 			// getting marked as invoiced.
 			continue
 		}
-		items = append(items, LineItem{UUID: r.UUID, Task: r.Task, From: r.From, To: *r.To, Hours: hours})
-		totalHours += hours
+		qty := clock.Hours()
+		if billing.Unit == manifest.RateUnitDay {
+			qty = qty / billing.HoursPerDay
+		}
+		items = append(items, LineItem{UUID: r.UUID, Task: r.Task, From: r.From, To: *r.To, Hours: qty})
+		totalHours += qty
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].From.Before(items[j].From) })
 
+	subtotal, vatAmount, total := VATBreakdown(totalHours, rate, client.VATPercent, client.RateIncludesVAT)
 	inv := Invoice{
-		Project:     opts.ProjectSlug,
-		Client:      project.Client,
-		GeneratedAt: time.Now(),
-		Currency:    client.Currency,
-		Rate:        rate,
-		TotalHours:  totalHours,
-		TotalAmount: totalHours * rate,
-		LineItems:   items,
+		Project:         opts.ProjectSlug,
+		Client:          project.Client,
+		GeneratedAt:     time.Now(),
+		Currency:        client.Currency,
+		Rate:            rate,
+		RateIncludesVAT: client.RateIncludesVAT,
+		QuantityUnit:    billing.Unit,
+		VATPercent:      client.VATPercent,
+		Subtotal:        subtotal,
+		VATAmount:       vatAmount,
+		TotalHours:      totalHours,
+		TotalAmount:     total,
+		LineItems:       items,
 	}
 	if opts.From != nil {
 		inv.PeriodFrom = opts.From.Format(time.RFC3339)
@@ -115,11 +123,16 @@ func Commit(dataDir string, man manifest.Manifest, opts Options) (Invoice, error
 		return Invoice{}, fmt.Errorf("nothing unbilled for project %q in that range", opts.ProjectSlug)
 	}
 
-	next, err := NextInvoiceNumber(dataDir)
+	client, ok := man.FindClient(inv.Client)
+	if !ok {
+		return Invoice{}, fmt.Errorf("project %q references unknown client %q", opts.ProjectSlug, inv.Client)
+	}
+	num := NumberingFor(client)
+	next, err := NextInvoiceNumber(dataDir, num)
 	if err != nil {
 		return Invoice{}, err
 	}
-	inv.Number = formatInvoiceNumber(next)
+	inv.Number = FormatNumber(num, next)
 	// Deterministic from the number, so it can be set before the PDF (a
 	// separate rendering step — see internal/pdfgen) actually exists yet.
 	inv.PDFPath = filepath.Join("invoices", inv.Number+".pdf")

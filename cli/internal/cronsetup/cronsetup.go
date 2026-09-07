@@ -1,16 +1,15 @@
-// Package cronsetup installs/removes a macOS LaunchAgent that runs
-// `focuson sync` once a day — the "don't lose data" safety net. Real cron
-// isn't reliable on modern macOS (it's not guaranteed to fire if the machine
-// was asleep, and newer macOS versions gate it behind Full Disk Access);
-// launchd is what the OS actually uses for anything scheduled, so that's
-// what this drives even though the user-facing framing is "a daily cron
-// job".
+// Package cronsetup installs/removes a daily job that runs `focuson sync` —
+// the "don't lose data" safety net. Real cron isn't reliable on modern
+// macOS (it's not guaranteed to fire if the machine was asleep, and newer
+// macOS versions gate it behind Full Disk Access); launchd is what the OS
+// actually uses for anything scheduled. On Windows the equivalent is a
+// Task Scheduler daily task. The user-facing framing is still "a daily
+// cron job" on both.
 package cronsetup
 
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -18,25 +17,9 @@ import (
 
 const label = "com.focuson.dailysync"
 
-func plistPath() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, "Library", "LaunchAgents", label+".plist"), nil
-}
-
-func logPath() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, "Library", "Logs", "focuson-sync.log"), nil
-}
-
 // resolveStableBinaryPath finds the currently-running binary's real,
 // symlink-resolved path, and refuses anything that looks like a `go run`
-// temp build — a LaunchAgent that points at a build-cache path that gets
+// temp build — a scheduled job that points at a build-cache path that gets
 // swept the moment the temp dir is cleaned would silently stop working
 // forever, which is exactly the kind of failure this command exists to
 // prevent.
@@ -62,88 +45,9 @@ func isTempBuildPath(path string) bool {
 	return strings.Contains(path, "go-build") || strings.HasPrefix(path, os.TempDir())
 }
 
-func plistContents(binaryPath, logFile string, hour, minute int) string {
-	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-	<key>Label</key>
-	<string>%s</string>
-	<key>ProgramArguments</key>
-	<array>
-		<string>%s</string>
-		<string>sync</string>
-	</array>
-	<key>StartCalendarInterval</key>
-	<dict>
-		<key>Hour</key>
-		<integer>%d</integer>
-		<key>Minute</key>
-		<integer>%d</integer>
-	</dict>
-	<key>StandardOutPath</key>
-	<string>%s</string>
-	<key>StandardErrorPath</key>
-	<string>%s</string>
-	<key>RunAtLoad</key>
-	<false/>
-</dict>
-</plist>
-`, label, binaryPath, hour, minute, logFile, logFile)
-}
-
-// Install writes and loads a LaunchAgent that runs `focuson sync` daily at
-// hour:minute (local time, 24h). Safe to call again to change the time —
-// unloads any existing job for this label first.
-func Install(hour, minute int) (plistFile string, err error) {
+func validateTime(hour, minute int) error {
 	if hour < 0 || hour > 23 || minute < 0 || minute > 59 {
-		return "", fmt.Errorf("invalid time %02d:%02d", hour, minute)
-	}
-	binaryPath, err := resolveStableBinaryPath()
-	if err != nil {
-		return "", err
-	}
-	path, err := plistPath()
-	if err != nil {
-		return "", err
-	}
-	logFile, err := logPath()
-	if err != nil {
-		return "", err
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return "", fmt.Errorf("creating %s: %w", filepath.Dir(path), err)
-	}
-
-	// Idempotent: unload whatever's there under this label before writing
-	// the new plist, so re-running install (e.g. with a different --time)
-	// doesn't fight with an already-loaded job. Ignore the error — it's
-	// expected to fail with "no such job" on a fresh install.
-	exec.Command("launchctl", "unload", path).Run()
-
-	if err := os.WriteFile(path, []byte(plistContents(binaryPath, logFile, hour, minute)), 0o644); err != nil {
-		return "", fmt.Errorf("writing %s: %w", path, err)
-	}
-
-	load := exec.Command("launchctl", "load", "-w", path)
-	if out, err := load.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("launchctl load: %w: %s", err, strings.TrimSpace(string(out)))
-	}
-	return path, nil
-}
-
-// Uninstall unloads and removes the LaunchAgent, if one exists.
-func Uninstall() error {
-	path, err := plistPath()
-	if err != nil {
-		return err
-	}
-	if _, statErr := os.Stat(path); os.IsNotExist(statErr) {
-		return nil
-	}
-	exec.Command("launchctl", "unload", path).Run() // best-effort; job may already be gone
-	if err := os.Remove(path); err != nil {
-		return fmt.Errorf("removing %s: %w", path, err)
+		return fmt.Errorf("invalid time %02d:%02d", hour, minute)
 	}
 	return nil
 }

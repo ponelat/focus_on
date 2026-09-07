@@ -1,9 +1,25 @@
 package config
 
-import "testing"
+import (
+	"path/filepath"
+	"testing"
+)
+
+// isolateConfigDir points UserConfigDir/UserHomeDir at a temp tree so tests
+// never read or write the real machine config. Unix uses HOME (and
+// XDG_CONFIG_HOME); Windows uses USERPROFILE + APPDATA.
+func isolateConfigDir(t *testing.T) {
+	t.Helper()
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("USERPROFILE", dir)
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(dir, ".config"))
+	t.Setenv("APPDATA", filepath.Join(dir, "AppData", "Roaming"))
+	t.Setenv("LOCALAPPDATA", filepath.Join(dir, "AppData", "Local"))
+}
 
 func TestLoadNoConfigIsNotAnError(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	isolateConfigDir(t)
 	cfg, ok, err := Load()
 	if err != nil {
 		t.Fatalf("Load: %v", err)
@@ -14,7 +30,7 @@ func TestLoadNoConfigIsNotAnError(t *testing.T) {
 }
 
 func TestSaveThenLoadRoundTrips(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
+	isolateConfigDir(t)
 	want := Config{DataDir: "/tmp/whatever/focuson-data"}
 	if err := Save(want); err != nil {
 		t.Fatalf("Save: %v", err)

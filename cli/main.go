@@ -178,19 +178,40 @@ func runInvoiceGenerate(dataDir string, args []string) error {
 }
 
 func renderPDF(dataDir string, inv invoicing.Invoice, business manifest.Business, client manifest.Client) error {
-	return pdfgen.Render(inv, business, client, filepath.Join(dataDir, inv.PDFPath))
+	return pdfgen.RenderIn(inv, business, client, filepath.Join(dataDir, inv.PDFPath), dataDir)
 }
 
 func printInvoicePreview(inv invoicing.Invoice) {
-	for _, li := range inv.LineItems {
-		fmt.Printf("  %s -> %s  %5.2fh  %s\n", li.From.Format("2006-01-02 15:04"), li.To.Format("15:04"), li.Hours, li.Task)
+	unit := "h"
+	if inv.QuantityUnit == "day" {
+		unit = "d"
 	}
-	fmt.Printf("%.2f hours x %.2f %s/hr = %.2f %s\n", inv.TotalHours, inv.Rate, inv.Currency, inv.TotalAmount, inv.Currency)
+	for _, li := range inv.LineItems {
+		fmt.Printf("  %s -> %s  %5.2f%s  %s\n", li.From.Format("2006-01-02 15:04"), li.To.Format("15:04"), li.Hours, unit, li.Task)
+	}
+	suffix := "hr"
+	qty := "hours"
+	if inv.QuantityUnit == "day" {
+		suffix = "day"
+		qty = "days"
+	}
+	incl := ""
+	if inv.RateIncludesVAT && inv.VATPercent > 0 {
+		incl = " incl VAT"
+	}
+	fmt.Printf("%.2f %s x %.2f %s/%s%s\n", inv.TotalHours, qty, inv.Rate, inv.Currency, suffix, incl)
+	if inv.VATPercent > 0 {
+		fmt.Printf("subtotal ex VAT %.2f\nVAT %.2f%% %.2f\ntotal due %.2f %s\n", inv.Subtotal, inv.VATPercent, inv.VATAmount, inv.TotalAmount, inv.Currency)
+	} else {
+		fmt.Printf("total due %.2f %s\n", inv.TotalAmount, inv.Currency)
+	}
 }
 
 func runInvoiceSetLast(dataDir string, args []string) error {
 	fs := flag.NewFlagSet("invoice set-last", flag.ContinueOnError)
 	number := fs.Int("number", 0, "last invoice number issued by your old system (required)")
+	prefix := fs.String("prefix", "", "per-client prefix; blank = INV")
+	digits := fs.Int("digits", 0, "zero-pad width; blank = 4 (INV-0042)")
 	note := fs.String("note", "Baseline import", "note stored on the placeholder invoice")
 	if err := fs.Parse(args); err != nil {
 		return err
@@ -198,11 +219,18 @@ func runInvoiceSetLast(dataDir string, args []string) error {
 	if *number <= 0 {
 		return fmt.Errorf("--number is required and must be positive")
 	}
-	inv, err := invoicing.SetLast(dataDir, *number, *note)
+	num := invoicing.DefaultNumbering()
+	if p := *prefix; p != "" {
+		num.Prefix = p
+	}
+	if *digits > 0 {
+		num.Digits = *digits
+	}
+	inv, err := invoicing.SetLastNumber(dataDir, num, *number, *note)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("wrote placeholder %s — next real invoice will be %04d+1\n", inv.Number, *number)
+	fmt.Printf("wrote placeholder %s — next real invoice for this prefix will be %d+1\n", inv.Number, *number)
 	return nil
 }
 

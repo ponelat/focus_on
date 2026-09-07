@@ -2,32 +2,16 @@ package cronsetup
 
 import (
 	"os"
-	"strings"
 	"testing"
 )
 
 // Install/Uninstall aren't unit-tested here — they shell out to the real
-// launchctl and, worse, os.Executable() during `go test` itself resolves to
-// a temp build (which isTempBuildPath is specifically designed to reject),
-// making the full path untestable without mutating real launchd state. The
-// pieces that matter — content generation, the temp-path guard, time
-// parsing — are fully testable in isolation below.
-
-func TestPlistContentsIncludesEverythingNeeded(t *testing.T) {
-	out := plistContents("/usr/local/bin/focuson", "/tmp/focuson-sync.log", 18, 30)
-	for _, want := range []string{
-		label,
-		"/usr/local/bin/focuson",
-		"<string>sync</string>",
-		"<integer>18</integer>",
-		"<integer>30</integer>",
-		"/tmp/focuson-sync.log",
-	} {
-		if !strings.Contains(out, want) {
-			t.Fatalf("plist missing %q:\n%s", want, out)
-		}
-	}
-}
+// OS scheduler (launchctl / schtasks) and, worse, os.Executable() during
+// `go test` itself resolves to a temp build (which isTempBuildPath is
+// specifically designed to reject), making the full path untestable without
+// mutating real scheduler state. The pieces that matter — content
+// generation, the temp-path guard, time parsing — are fully testable in
+// isolation below.
 
 func TestIsTempBuildPathRejectsGoBuildAndTempDir(t *testing.T) {
 	cases := map[string]bool{

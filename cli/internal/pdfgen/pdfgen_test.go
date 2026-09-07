@@ -1,6 +1,10 @@
 package pdfgen
 
 import (
+	"bytes"
+	"image"
+	"image/color"
+	"image/png"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,6 +15,24 @@ import (
 	"github.com/ckritzinger/focus_on/cli/internal/invoicing"
 	"github.com/ckritzinger/focus_on/cli/internal/manifest"
 )
+
+func writeTestPNG(t *testing.T, path string, w, h int) {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, w, h))
+	for y := 0; y < h; y++ {
+		for x := 0; x < w; x++ {
+			img.Set(x, y, color.RGBA{R: 180, G: 60, B: 40, A: 255})
+		}
+	}
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	if err := png.Encode(f, img); err != nil {
+		t.Fatal(err)
+	}
+}
 
 // TestHeaderAdvancesPastTheLongerColumn is a regression test for a real
 // layout bug: the header draws business info (left) and invoice metadata
@@ -96,6 +118,71 @@ func TestRenderProducesAValidLookingPDF(t *testing.T) {
 	}
 	if string(data[:5]) != "%PDF-" {
 		t.Fatalf("output doesn't start with a PDF header: %q", data[:5])
+	}
+}
+
+func TestRenderVATAndDayUnit(t *testing.T) {
+	inv := invoicing.Invoice{
+		Number:          "ACME-0008",
+		GeneratedAt:     time.Date(2026, 9, 7, 10, 0, 0, 0, time.UTC),
+		Currency:        "USD",
+		Rate:            115,
+		RateIncludesVAT: true,
+		QuantityUnit:    "hour",
+		VATPercent:      15,
+		Subtotal:        1000,
+		VATAmount:       150,
+		TotalHours:      10,
+		TotalAmount:     1150,
+		LineItems: []invoicing.LineItem{
+			{UUID: "aaa", Task: "Work", From: time.Date(2026, 8, 1, 9, 0, 0, 0, time.UTC), To: time.Date(2026, 8, 1, 17, 0, 0, 0, time.UTC), Hours: 10},
+		},
+	}
+	outPath := filepath.Join(t.TempDir(), "ACME-0008.pdf")
+	if err := Render(inv, manifest.Business{Name: "Example Ltd", VATNote: "VAT No: 123"}, manifest.Client{Name: "Acme", VATNumber: "456"}, outPath); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+}
+
+func TestRenderUsesLogoFile(t *testing.T) {
+	dir := t.TempDir()
+	logo := filepath.Join(dir, "logo.png")
+	writeTestPNG(t, logo, 64, 16)
+
+	inv := invoicing.Invoice{
+		Number:      "INV-0042",
+		GeneratedAt: time.Date(2026, 9, 7, 10, 0, 0, 0, time.UTC),
+		Currency:    "USD",
+		Rate:        100,
+		TotalHours:  2,
+		TotalAmount: 200,
+		LineItems: []invoicing.LineItem{
+			{UUID: "aaa", Task: "Work", From: time.Date(2026, 9, 1, 9, 0, 0, 0, time.UTC), To: time.Date(2026, 9, 1, 11, 0, 0, 0, time.UTC), Hours: 2},
+		},
+	}
+	outPath := filepath.Join(dir, "with-logo.pdf")
+	if err := RenderIn(inv, manifest.Business{Name: "Example Ltd", Logo: "logo.png"}, manifest.Client{Name: "Acme"}, outPath, dir); err != nil {
+		t.Fatalf("RenderIn: %v", err)
+	}
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(data, []byte("/XObject")) && !bytes.Contains(data, []byte("/Image")) {
+		t.Fatalf("expected an embedded image XObject in the PDF")
+	}
+}
+
+func TestRenderOmitsLogoWhenUnset(t *testing.T) {
+	inv := invoicing.Invoice{
+		Number:      "INV-0001",
+		GeneratedAt: time.Now(),
+		LineItems: []invoicing.LineItem{
+			{UUID: "aaa", Task: "x", From: time.Now(), To: time.Now().Add(time.Hour), Hours: 1},
+		},
+	}
+	if err := Render(inv, manifest.Business{Name: "X"}, manifest.Client{}, filepath.Join(t.TempDir(), "nologo.pdf")); err != nil {
+		t.Fatalf("Render: %v", err)
 	}
 }
 

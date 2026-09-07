@@ -20,6 +20,38 @@ func formatOptionalDate(t *time.Time) string {
 	return t.Format("2006-01-02")
 }
 
+func quantityUnitLabel(inv invoicing.Invoice) string {
+	if inv.QuantityUnit == "day" {
+		return "days"
+	}
+	return "hours"
+}
+
+func quantityUnitShort(inv invoicing.Invoice) string {
+	if inv.QuantityUnit == "day" {
+		return "day"
+	}
+	return "hr"
+}
+
+func invoiceTotals(inv invoicing.Invoice) string {
+	unit := quantityUnitLabel(inv)
+	short := quantityUnitShort(inv)
+	incl := ""
+	if inv.RateIncludesVAT && inv.VATPercent > 0 {
+		incl = " incl VAT"
+	}
+	var b strings.Builder
+	b.WriteString(fmt.Sprintf("%.2f %s × %.2f %s/%s%s", inv.TotalHours, unit, inv.Rate, inv.Currency, short, incl))
+	if inv.VATPercent > 0 {
+		b.WriteString(fmt.Sprintf("\nSubtotal ex VAT  %.2f\nVAT %.2f%%          %.2f\nTotal due        %.2f %s",
+			inv.Subtotal, inv.VATPercent, inv.VATAmount, inv.TotalAmount, inv.Currency))
+	} else {
+		b.WriteString(fmt.Sprintf(" = %.2f %s", inv.TotalAmount, inv.Currency))
+	}
+	return b.String()
+}
+
 // --- Invoices list -------------------------------------------------------
 
 const (
@@ -247,7 +279,7 @@ func (m Model) renderInvoicePDF(inv invoicing.Invoice) error {
 		return fmt.Errorf("client %q no longer in manifest", project.Client)
 	}
 	outPath := filepath.Join(m.dataDir, inv.PDFPath)
-	return pdfgen.Render(inv, m.man.Business, client, outPath)
+	return pdfgen.RenderIn(inv, m.man.Business, client, outPath, m.dataDir)
 }
 
 func (m Model) viewInvoiceReview() string {
@@ -270,12 +302,12 @@ func (m Model) viewInvoiceReview() string {
 		return b.String()
 	}
 
+	unit := quantityUnitLabel(inv)
 	for _, li := range inv.LineItems {
-		b.WriteString(fmt.Sprintf("  %s → %s  %5.2fh  %s\n",
-			li.From.Format("2006-01-02 15:04"), li.To.Format("15:04"), li.Hours, li.Task))
+		b.WriteString(fmt.Sprintf("  %s → %s  %5.2f%s  %s\n",
+			li.From.Format("2006-01-02 15:04"), li.To.Format("15:04"), li.Hours, unit[:1], li.Task))
 	}
-	b.WriteString(fmt.Sprintf("\n%.2f hours × %.2f %s/hr = %.2f %s\n",
-		inv.TotalHours, inv.Rate, inv.Currency, inv.TotalAmount, inv.Currency))
+	b.WriteString("\n" + invoiceTotals(inv) + "\n")
 
 	if m.invoiceCommitErr != nil {
 		b.WriteString("\n" + errorStyle.Render(m.invoiceCommitErr.Error()) + "\n")
@@ -289,14 +321,21 @@ func (m Model) viewInvoiceReview() string {
 
 const (
 	setLastFieldNumber = iota
+	setLastFieldPrefix
+	setLastFieldDigits
 	setLastFieldNote
 )
 
 func newSetLastForm() form {
 	return newForm("Set starting invoice number",
-		[]string{"Last number issued by your old system (e.g. 41)", "Note"},
-		[]string{"", "Baseline import"},
-		[]bool{false, false})
+		[]string{
+			"Last number issued (e.g. 41)",
+			"Prefix (blank = INV)",
+			"Digits (blank = 4, like INV-0042)",
+			"Note",
+		},
+		[]string{"", "", "", "Baseline import"},
+		[]bool{false, false, false, false})
 }
 
 func (m Model) updateInvoiceSetLast(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -316,7 +355,19 @@ func (m Model) updateInvoiceSetLast(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			m.invoiceSetLastForm.err = fmt.Errorf("starting number: %v", err)
 			return m, cmd
 		}
-		if _, err := invoicing.SetLast(m.dataDir, n, vals[setLastFieldNote]); err != nil {
+		digits, err := parseOptionalInt(vals[setLastFieldDigits])
+		if err != nil {
+			m.invoiceSetLastForm.err = fmt.Errorf("digits: %v", err)
+			return m, cmd
+		}
+		num := invoicing.DefaultNumbering()
+		if p := strings.TrimSpace(vals[setLastFieldPrefix]); p != "" {
+			num.Prefix = strings.ToUpper(p)
+		}
+		if digits > 0 {
+			num.Digits = digits
+		}
+		if _, err := invoicing.SetLastNumber(m.dataDir, num, n, vals[setLastFieldNote]); err != nil {
 			m.invoiceSetLastForm.err = err
 			return m, cmd
 		}
@@ -351,7 +402,7 @@ func (m Model) viewInvoiceDetail() string {
 	if inv.PeriodFrom != "" || inv.PeriodTo != "" {
 		b.WriteString(fmt.Sprintf("Period: %s → %s\n", inv.PeriodFrom, inv.PeriodTo))
 	}
-	b.WriteString(fmt.Sprintf("%.2f hours × %.2f %s/hr = %.2f %s\n", inv.TotalHours, inv.Rate, inv.Currency, inv.TotalAmount, inv.Currency))
+	b.WriteString(invoiceTotals(inv) + "\n")
 	b.WriteString(fmt.Sprintf("%d line item(s)\n", len(inv.LineItems)))
 	if inv.PDFPath != "" {
 		b.WriteString(fmt.Sprintf("PDF: %s\n", inv.PDFPath))

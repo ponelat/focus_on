@@ -15,6 +15,7 @@ const (
 	businessFieldVATNote
 	businessFieldPaymentTerms
 	businessFieldPaymentDetails
+	businessFieldLogo
 )
 
 func newBusinessForm(b manifest.Business) form {
@@ -26,6 +27,7 @@ func newBusinessForm(b manifest.Business) form {
 		"VAT note (e.g. \"Not registered for VAT\")",
 		"Payment terms (e.g. \"Due upon receipt\")",
 		"Payment details (\"; \"-separated lines)",
+		"Logo path (PNG/JPG, relative to data dir; blank = none)",
 	}
 	values := []string{
 		b.Name,
@@ -35,6 +37,7 @@ func newBusinessForm(b manifest.Business) form {
 		b.VATNote,
 		b.PaymentTerms,
 		b.PaymentDetails,
+		b.Logo,
 	}
 	return newForm("Business info (printed on every invoice)", labels, values, make([]bool, len(labels)))
 }
@@ -66,6 +69,7 @@ func (m Model) updateBusinessForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			VATNote:            vals[businessFieldVATNote],
 			PaymentTerms:       vals[businessFieldPaymentTerms],
 			PaymentDetails:     vals[businessFieldPaymentDetails],
+			Logo:               vals[businessFieldLogo],
 		}
 		if err := manifest.SetBusiness(m.dataDir, b); err != nil {
 			m.businessForm.err = err
