@@ -203,7 +203,10 @@ export class TaskStore {
      * the same task_log.csv as the row it closes, or the original project is
      * left with an unclosed uuid that the CLI's integrity check reports as
      * abandoned. Procrastinating across projects is a real thing and this
-     * does not express it; see gnome/README.md.
+     * does not express it.
+     *
+     * TODO: docs/cross-project-time.md sketches two ways to close that gap
+     * and measures both against the current CLI. Neither is built.
      *
      * @param {string} actualTask what you were really doing
      * @param {boolean} completed whether that is now finished

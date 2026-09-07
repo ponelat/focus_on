@@ -164,9 +164,12 @@ than an oversight. The closing row has to land in the same `task_log.csv` as
 the row it closes; putting it in another project's file would leave the
 original project holding a uuid that never closes, which is exactly the
 dangling entry the CLI refuses to run against. Procrastinating from a client
-project into a personal one is a genuine case this does not express. Doing it
-properly needs the CLI to learn a way of voiding a session, which is a format
-change and a conversation with upstream.
+project into a personal one is a genuine case this does not express.
+
+There is a design note for closing that gap in
+[`docs/cross-project-time.md`](../docs/cross-project-time.md), with two routes
+measured against the current CLI — one that needs nothing from upstream, and
+one that needs a schema change.
 
 ## Deliberate differences
 
