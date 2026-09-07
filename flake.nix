@@ -17,13 +17,34 @@
       forAllSystems = f: nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
     in
     {
-      packages = forAllSystems (pkgs: {
-        # The CLI builds everywhere; the GNOME widget is Linux-only, and on
-        # macOS the widget you want is the Xcode project in FocusOn/.
-        focuson = pkgs.callPackage ./nix/focuson-cli.nix { };
-        gnome-shell-extension-focuson = pkgs.callPackage ./nix/gnome-extension.nix { };
-        default = pkgs.callPackage ./nix/focuson-cli.nix { };
-      });
+      packages = forAllSystems (
+        pkgs:
+        let
+          # The CLI builds everywhere; the GNOME widget is Linux-only, and on
+          # macOS the widget you want is the Xcode project in FocusOn/.
+          cli = pkgs.callPackage ./nix/focuson-cli.nix { };
+          extension = pkgs.callPackage ./nix/gnome-extension.nix { };
+        in
+        {
+          focuson = cli;
+          gnome-shell-extension-focuson = extension;
+
+          # Both halves of FocusOn for this platform, so that a plain
+          #   nix profile install github:ckritzinger/focus_on
+          # is the whole install rather than the first of two commands. The
+          # extension lands in share/gnome-shell/extensions/<uuid>, which
+          # GNOME finds through XDG_DATA_DIRS once the profile is on it.
+          default = pkgs.symlinkJoin {
+            name = "focuson-${cli.version}";
+            paths = [ cli ] ++ pkgs.lib.optional pkgs.stdenv.hostPlatform.isLinux extension;
+            meta = cli.meta // {
+              description =
+                "FocusOn: the focuson CLI"
+                + pkgs.lib.optionalString pkgs.stdenv.hostPlatform.isLinux " and the GNOME Shell widget";
+            };
+          };
+        }
+      );
 
       overlays.default = final: _prev: {
         focuson = final.callPackage ./nix/focuson-cli.nix { };
