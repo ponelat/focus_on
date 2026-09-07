@@ -54,11 +54,9 @@ produces the identical record. A label you flinch at is a label you stop using,
 and then the data is gone — which is the one outcome that makes the feature
 pointless.
 
-Recommendation: **`Elsewhere`**, with the destination after it. Short, neutral,
-reads correctly in a log line and in a summary ("2h 10m elsewhere this week").
-Runner-up is `Off-project`, if you would rather the word carry the billing
-meaning explicitly. `Outside project work` is accurate but is a phrase, not a
-label.
+**Decided: `Elsewhere`**, with the destination after it — `Elsewhere →
+memorious/Fix sync bug`. Short, neutral, reads correctly in a log line and in a
+summary ("2h 10m elsewhere this week").
 
 Note that this choice is only permanent under Route A below, where the string is
 load-bearing. Under Route B it is display text and can change whenever.
