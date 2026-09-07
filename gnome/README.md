@@ -7,6 +7,8 @@ appends work sessions to the CSV logs the `focuson` CLI turns into invoices.
 A data directory is portable between the two. Sync one over git and the macOS
 widget, the GNOME widget and the CLI all read and write it interchangeably.
 
+![The FocusOn widget tracking a task on GNOME](screenshot.png)
+
 ## Why this is a Shell extension and not a GTK app
 
 The macOS widget is a borderless `NSPanel` at `.floating` level with
