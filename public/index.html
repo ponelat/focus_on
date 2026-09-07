@@ -72,6 +72,7 @@ a{color:var(--accent);}
 a:focus-visible, button:focus-visible{outline:2px solid var(--accent); outline-offset:3px;}
 
 .wrap{max-width:900px; margin:0 auto; padding:0 28px;}
+img,svg{max-width:100%;}
 .prose{max-width:640px;}
 
 /* ---------- header ---------- */
@@ -98,7 +99,7 @@ nav a{
   padding-bottom:2px;
 }
 nav a:hover{color:var(--ink); border-bottom-color:var(--rule);}
-.icon-link{display:inline-flex; align-items:center; color:var(--ink-dim); border-bottom:none !important;}
+.icon-link{display:inline-flex; align-items:center; color:var(--ink-dim); border-bottom:none !important; padding:8px 0;}
 .icon-link:hover{color:var(--ink);}
 
 /* ---------- hero ---------- */
@@ -281,6 +282,23 @@ footer .wrap{
   .invoice-line{grid-template-columns:1fr; gap:2px;}
   .invoice-line .hrs,.invoice-line .rate,.invoice-line .log{text-align:left;}
 }
+
+@media (max-width:640px){
+  body{font-size:18px;}
+  .wrap{padding:0 20px;}
+  header{padding:18px 0 16px;}
+  header .wrap{gap:14px 20px;}
+  .hero{padding:40px 0 34px;}
+  section{padding:36px 0;}
+  .section-head{margin-bottom:20px;}
+  .part{padding:18px;}
+  .soft-break{display:none;}
+  .eyebrow, nav a, .section-head .tag, .part .code,
+  .invoice figcaption, footer .wrap{
+    font-size:.82rem;
+    letter-spacing:.08em;
+  }
+}
 </style>
 
 <header>
@@ -299,7 +317,7 @@ footer .wrap{
   <section class="hero">
     <div class="wrap">
       <p class="eyebrow">A time tracker for freelancers</p>
-      <h1>Track your time. Invoice your clients.<br>Own your data, forever.</h1>
+      <h1>Track your time. Invoice your clients.<br class="soft-break">Own your data, forever.</h1>
       <p class="sub">You went freelance so nobody could own you. <strong>Why let a subscription own your invoices?</strong> FocusOn tracks hours and generates invoices from files on your own disk. There's no account, no monthly bill, no company standing between you and your own timesheet.</p>
     </div>
   </section>
