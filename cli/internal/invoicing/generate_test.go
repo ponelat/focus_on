@@ -199,6 +199,80 @@ func TestSubMinuteLineItemsAreDropped(t *testing.T) {
 	}
 }
 
+func TestPerClientPrefixNumberingDoesNotCollide(t *testing.T) {
+	dataDir, man := setupProject(t,
+		`aaa,"Task one",2026-09-01T09:00:00Z,2026-09-01T11:00:00Z,true`,
+	)
+	if err := manifest.UpdateClient(dataDir, "acme-corp", manifest.Client{
+		Name: "Acme Corp", Currency: "USD", Rate: 100, InvoicePrefix: "ACME",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	man, _ = manifest.Load(dataDir)
+
+	if _, err := SetLastNumber(dataDir, Numbering{Prefix: "ACME", Digits: 4}, 11, "acme baseline"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := SetLastNumber(dataDir, Numbering{Prefix: "BETA", Digits: 4}, 7, "other client"); err != nil {
+		t.Fatal(err)
+	}
+
+	inv, err := Commit(dataDir, man, Options{ProjectSlug: "acme-website"})
+	if err != nil {
+		t.Fatalf("Commit: %v", err)
+	}
+	if inv.Number != "ACME-0012" {
+		t.Fatalf("got %s, want ACME-0012 (BETA-0007 must not bump ACME)", inv.Number)
+	}
+}
+
+func TestDayRateConvertsClockHours(t *testing.T) {
+	dataDir, man := setupProject(t,
+		`aaa,"Sprint day",2026-09-01T09:00:00Z,2026-09-01T17:00:00Z,true`, // 8h = 1 day
+		`bbb,"Half",2026-09-02T09:00:00Z,2026-09-02T13:00:00Z,true`,       // 4h = 0.5 day
+	)
+	if err := manifest.UpdateClient(dataDir, "acme-corp", manifest.Client{
+		Name: "Acme Corp", Currency: "USD", Rate: 800, RateUnit: "day", HoursPerDay: 8,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	man, _ = manifest.Load(dataDir)
+
+	inv, err := Preview(dataDir, man, Options{ProjectSlug: "acme-website"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inv.QuantityUnit != "day" {
+		t.Fatalf("QuantityUnit = %q, want day", inv.QuantityUnit)
+	}
+	if inv.TotalHours != 1.5 {
+		t.Fatalf("billed days = %v, want 1.5", inv.TotalHours)
+	}
+	if inv.TotalAmount != 1200 {
+		t.Fatalf("amount = %v, want 1.5*800=1200", inv.TotalAmount)
+	}
+}
+
+func TestVATInclusiveExtractsFromGross(t *testing.T) {
+	sub, vat, total := VATBreakdown(10, 115, 15, true)
+	if total != 1150 {
+		t.Fatalf("total = %v, want 1150", total)
+	}
+	if sub != 1000 {
+		t.Fatalf("subtotal = %v, want 1000", sub)
+	}
+	if vat != 150 {
+		t.Fatalf("vat = %v, want 150", vat)
+	}
+}
+
+func TestVATExclusiveAddsOnTop(t *testing.T) {
+	sub, vat, total := VATBreakdown(10, 100, 15, false)
+	if sub != 1000 || vat != 150 || total != 1150 {
+		t.Fatalf("got sub=%v vat=%v total=%v", sub, vat, total)
+	}
+}
+
 func TestDateBoundsFilterOnToTimestamp(t *testing.T) {
 	dataDir, man := setupProject(t,
 		`aaa,"August",2026-08-15T09:00:00Z,2026-08-15T10:00:00Z,true`,

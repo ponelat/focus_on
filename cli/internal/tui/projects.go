@@ -25,8 +25,8 @@ func (m Model) projectListItems() []string {
 		}
 		if p.Client == "" {
 			label += " (personal, non-billable)"
-		} else if rate, ok := m.man.EffectiveRate(p); ok {
-			label += fmt.Sprintf(" (%s @ %.2f/hr)", p.Client, rate)
+		} else if b, ok := m.man.EffectiveBilling(p); ok {
+			label += fmt.Sprintf(" (%s @ %.2f/%s)", p.Client, b.Rate, b.Client.UnitLabel())
 		} else {
 			label += fmt.Sprintf(" (%s)", p.Client)
 		}
@@ -179,10 +179,11 @@ func (m Model) updateProjectForm(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 		p := manifest.Project{
-			Slug:   vals[projectFieldSlug],
-			Name:   vals[projectFieldName],
-			Client: m.draftProject.Client, // from the picker step, not the (display-only) form field
-			Rate:   rate,
+			Slug:           vals[projectFieldSlug],
+			Name:           vals[projectFieldName],
+			Client:         m.draftProject.Client, // from the picker step, not the (display-only) form field
+			Rate:           rate,
+			LastInvoicedAt: m.draftProject.LastInvoicedAt,
 		}
 		var opErr error
 		if m.editingProjectSlug == "" {

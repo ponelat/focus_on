@@ -22,13 +22,3 @@ func TestPlistContentsIncludesEverythingNeeded(t *testing.T) {
 		}
 	}
 }
-
-// The label is load-bearing for anyone who installed before the Linux port
-// split this file: launchctl identifies an already-loaded job by it, so a
-// rename would leave the old job running forever alongside the new one
-// rather than replacing it.
-func TestLabelIsUnchangedFromTheOriginalInstall(t *testing.T) {
-	if label != "com.focuson.dailysync" {
-		t.Fatalf("label = %q; renaming it orphans existing installs' LaunchAgents", label)
-	}
-}

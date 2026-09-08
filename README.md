@@ -25,7 +25,7 @@ No accounts. No cloud. No subscription. Everything lives in plain CSV/TOML files
 - UUID-based double-billing prevention — a session invoiced once never gets billed again, even months later with no date filter
 - "Check consistency" — flags anything that looks billed twice or forgotten
 - `focuson sync` commits your data directory to git and pushes to `origin` if you've set one up
-- `focuson cron install` schedules a daily automatic sync — a LaunchAgent on macOS, a systemd user timer on Linux — so you can't forget
+- `focuson cron install` schedules a daily automatic sync — a LaunchAgent on macOS, a systemd user timer on Linux, a Task Scheduler task on Windows — so you can't forget
 
 ## Requirements
 
@@ -153,7 +153,7 @@ cli/                            # the focuson CLI (Go)
     ├── invoicing/    # invoice generation, numbering, recon
     ├── pdfgen/       # PDF rendering
     ├── gitsync/      # commit + push
-    ├── cronsetup/    # daily sync job: LaunchAgent (darwin) / systemd user timer (linux)
+    ├── cronsetup/    # daily sync job: LaunchAgent (darwin) / systemd timer (linux) / Task Scheduler (windows)
     └── tui/          # Bubble Tea screens
 ```
 

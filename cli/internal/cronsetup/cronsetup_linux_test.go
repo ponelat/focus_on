@@ -35,7 +35,7 @@ func TestTimerContentsSchedulesTheGivenTime(t *testing.T) {
 	}
 }
 
-func TestStableBinaryPathPrefersANixProfileOverTheStore(t *testing.T) {
+func TestPreferNixProfilePathPrefersAProfileOverTheStore(t *testing.T) {
 	// A store path pins one build; the next garbage collection deletes it
 	// and the timer silently stops working. The profile symlink Nix
 	// repoints on upgrade is what the unit has to name instead.
@@ -51,13 +51,13 @@ func TestStableBinaryPathPrefersANixProfileOverTheStore(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got := stableBinaryPath("/nix/store/abc123-focuson-1.0/bin/focuson")
+	got := preferNixProfilePath("/nix/store/abc123-focuson-1.0/bin/focuson")
 	if got != want {
-		t.Errorf("stableBinaryPath(store path) = %q, want %q", got, want)
+		t.Errorf("preferNixProfilePath(store path) = %q, want %q", got, want)
 	}
 }
 
-func TestStableBinaryPathFallsBackToTheStorePathWhenNoProfileExists(t *testing.T) {
+func TestPreferNixProfilePathFallsBackToTheStorePathWhenNoProfileExists(t *testing.T) {
 	// Better a path that works today than one that never worked: a
 	// dangling profile entry would break the timer immediately.
 	t.Setenv("HOME", t.TempDir())
@@ -67,7 +67,7 @@ func TestStableBinaryPathFallsBackToTheStorePathWhenNoProfileExists(t *testing.T
 	// system-wide candidate (/run/current-system/sw/bin) can't accidentally
 	// satisfy the lookup when this test runs on a real NixOS machine.
 	const store = "/nix/store/abc123-focuson-1.0/bin/focuson-not-a-real-binary"
-	if got := stableBinaryPath(store); got != store {
-		t.Errorf("stableBinaryPath(%q) = %q, want it unchanged", store, got)
+	if got := preferNixProfilePath(store); got != store {
+		t.Errorf("preferNixProfilePath(%q) = %q, want it unchanged", store, got)
 	}
 }

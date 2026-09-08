@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/BurntSushi/toml"
 )
@@ -21,15 +22,29 @@ type Business struct {
 	VATNote            string `toml:"vat_note,omitempty"`            // e.g. "Not registered for VAT" or "VAT No: ..." — free text, no jurisdiction assumed
 	PaymentTerms       string `toml:"payment_terms,omitempty"`       // e.g. "Due upon receipt", "Net 30" — printed as-is, not computed into a date
 	PaymentDetails     string `toml:"payment_details"`
+	Logo               string `toml:"logo,omitempty"` // optional PNG/JPG path (relative to the data dir, or absolute). Blank or "-" = no logo.
 }
 
+const (
+	RateUnitHour       = "hour"
+	RateUnitDay        = "day"
+	defaultHoursPerDay = 8
+)
+
 type Client struct {
-	Slug         string  `toml:"slug"`
-	Name         string  `toml:"name"`
-	Currency     string  `toml:"currency"`
-	Rate         float64 `toml:"rate"`
-	Address      string  `toml:"address"`
-	ContactEmail string  `toml:"contact_email"`
+	Slug            string  `toml:"slug"`
+	Name            string  `toml:"name"`
+	Currency        string  `toml:"currency"`
+	Rate            float64 `toml:"rate"`
+	RateUnit        string  `toml:"rate_unit,omitempty"`     // "hour" (default) or "day"
+	HoursPerDay     float64 `toml:"hours_per_day,omitempty"` // clock-hours that count as 1 day; default 8
+	VATPercent      float64 `toml:"vat_percent,omitempty"`   // 0 = no VAT on invoices
+	RateIncludesVAT bool    `toml:"rate_includes_vat,omitempty"`
+	VATNumber       string  `toml:"vat_number,omitempty"`
+	InvoicePrefix   string  `toml:"invoice_prefix,omitempty"` // blank => "INV"
+	InvoiceDigits   int     `toml:"invoice_digits,omitempty"` // pad width; 0 => 4 (INV-0042)
+	Address         string  `toml:"address"`
+	ContactEmail    string  `toml:"contact_email"`
 }
 
 type Project struct {
@@ -133,13 +148,51 @@ func (p Project) Billable() bool {
 }
 
 // EffectiveRate returns the project's rate override, falling back to its
-// client's rate.
+// client's rate. A zero rate is "not set", not "free".
 func (m Manifest) EffectiveRate(p Project) (float64, bool) {
+	b, ok := m.EffectiveBilling(p)
+	return b.Rate, ok
+}
+
+// Billing is the resolved rate + unit + VAT/numbering for one project.
+type Billing struct {
+	Client      Client
+	Rate        float64
+	Unit        string  // RateUnitHour or RateUnitDay
+	HoursPerDay float64 // only meaningful when Unit is day
+}
+
+func (c Client) BillingUnit() string {
+	if strings.EqualFold(c.RateUnit, RateUnitDay) {
+		return RateUnitDay
+	}
+	return RateUnitHour
+}
+
+func (c Client) HoursPerDayOrDefault() float64 {
+	if c.HoursPerDay > 0 {
+		return c.HoursPerDay
+	}
+	return defaultHoursPerDay
+}
+
+func (c Client) UnitLabel() string {
+	if c.BillingUnit() == RateUnitDay {
+		return "day"
+	}
+	return "hr"
+}
+
+// EffectiveBilling resolves rate (project override, else client) plus the
+// client's unit/VAT/numbering. ok is false when there's no non-zero rate.
+func (m Manifest) EffectiveBilling(p Project) (Billing, bool) {
+	c, ok := m.FindClient(p.Client)
+	if !ok {
+		return Billing{Unit: RateUnitHour, HoursPerDay: defaultHoursPerDay}, false
+	}
+	b := Billing{Client: c, Unit: c.BillingUnit(), HoursPerDay: c.HoursPerDayOrDefault(), Rate: c.Rate}
 	if p.Rate != 0 {
-		return p.Rate, true
+		b.Rate = p.Rate
 	}
-	if c, ok := m.FindClient(p.Client); ok {
-		return c.Rate, true
-	}
-	return 0, false
+	return b, b.Rate != 0
 }

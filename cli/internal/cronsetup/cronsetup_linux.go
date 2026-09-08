@@ -31,26 +31,30 @@ func unitDir() (string, error) {
 // nixStorePrefix is deliberately the literal path rather than anything read
 // from the environment: /nix/store is fixed by definition on every NixOS
 // system, and a store path is exactly what must not end up baked into a
-// unit file. See stableBinaryPath.
+// unit file. See preferNixProfilePath.
 const nixStorePrefix = "/nix/store/"
 
-// stableBinaryPath undoes too much symlink resolution on Nix systems.
+// preferNixProfilePath undoes too much symlink resolution on Nix systems.
 //
-// os.Executable() reads /proc/self/exe, which is already fully resolved, so
-// a focuson installed by Nix reports a path like
+// resolveStableBinaryPath resolves symlinks, which is right everywhere else
+// and wrong here. os.Executable() reads /proc/self/exe, already fully
+// resolved, so a focuson installed by Nix reports a path like
 // /nix/store/<hash>-focuson-1.0/bin/focuson. That path is pinned to one
 // build: the next `nix profile upgrade` or `nixos-rebuild` writes a *new*
-// store path, and the old one is deleted by the next garbage collection —
-// at which point the timer starts failing with ENOENT and the user's daily
+// store path, and the old one is deleted by the next garbage collection — at
+// which point the timer starts failing with ENOENT and the user's daily
 // backup silently stops, which is the precise failure resolveStableBinaryPath
 // exists to prevent.
 //
 // The fix is to point the unit at one of the stable indirections Nix
-// maintains for exactly this reason, preferring the most specific. Each is
-// a symlink that Nix repoints on upgrade, so the unit keeps working. If the
+// maintains for exactly this reason, preferring the most specific. Each is a
+// symlink that Nix repoints on upgrade, so the unit keeps working. If the
 // binary isn't under the store at all (a plain `go build -o ~/bin/focuson`),
 // there's nothing to undo and the resolved path is already stable.
-func stableBinaryPath(resolved string) string {
+//
+// Deliberately local to this file: no other platform has a package manager
+// that rewrites its own install paths, so the shared helper stays as it is.
+func preferNixProfilePath(resolved string) string {
 	if !strings.HasPrefix(resolved, nixStorePrefix) {
 		return resolved
 	}
@@ -132,13 +136,15 @@ func systemctl(args ...string) error {
 // output goes to the journal automatically, so `journalctl --user -u
 // focuson-sync.service` is the Linux equivalent of ~/Library/Logs.
 func Install(hour, minute int) (jobFile string, err error) {
-	if err := validTime(hour, minute); err != nil {
+	if err := validateTime(hour, minute); err != nil {
 		return "", err
 	}
 	binaryPath, err := resolveStableBinaryPath()
 	if err != nil {
 		return "", err
 	}
+	binaryPath = preferNixProfilePath(binaryPath)
+
 	dir, err := unitDir()
 	if err != nil {
 		return "", err

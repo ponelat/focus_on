@@ -10,11 +10,6 @@ import (
 	"strings"
 )
 
-// Unchanged from the pre-port single-platform version: an existing install
-// out in the world already has a LaunchAgent under this label, and renaming
-// it would orphan that job rather than replace it.
-const label = "com.focuson.dailysync"
-
 func plistPath() (string, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -30,11 +25,6 @@ func logPath() (string, error) {
 	}
 	return filepath.Join(home, "Library", "Logs", "focuson-sync.log"), nil
 }
-
-// stableBinaryPath has nothing to add on macOS — a path under /Applications
-// or ~/bin stays valid across upgrades on its own. (Linux has the Nix store
-// problem; see cronsetup_linux.go.)
-func stableBinaryPath(resolved string) string { return resolved }
 
 func plistContents(binaryPath, logFile string, hour, minute int) string {
 	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
@@ -69,8 +59,8 @@ func plistContents(binaryPath, logFile string, hour, minute int) string {
 // Install writes and loads a LaunchAgent that runs `focuson sync` daily at
 // hour:minute (local time, 24h). Safe to call again to change the time —
 // unloads any existing job for this label first.
-func Install(hour, minute int) (jobFile string, err error) {
-	if err := validTime(hour, minute); err != nil {
+func Install(hour, minute int) (plistFile string, err error) {
+	if err := validateTime(hour, minute); err != nil {
 		return "", err
 	}
 	binaryPath, err := resolveStableBinaryPath()
