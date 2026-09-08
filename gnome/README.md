@@ -166,10 +166,10 @@ original project holding a uuid that never closes, which is exactly the
 dangling entry the CLI refuses to run against. Procrastinating from a client
 project into a personal one is a genuine case this does not express.
 
-There is a design note for closing that gap in
-[`docs/cross-project-time.md`](../docs/cross-project-time.md), with two routes
-measured against the current CLI — one that needs nothing from upstream, and
-one that needs a schema change.
+[`docs/cross-project-time.md`](../docs/cross-project-time.md) has the design
+for closing that gap: an `Elsewhere` row carrying the destination in a general
+`meta` column, plus the one-line reader change that makes every future column
+free. Not built.
 
 ## Deliberate differences
 
